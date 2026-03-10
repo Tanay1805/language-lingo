@@ -9,6 +9,7 @@ import 'my_schedule_widget.dart';
 import 'current_course_widget.dart';
 import '../Learning/series_selection_page.dart';
 import '../Learning/netflix_transition_page.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -19,6 +20,40 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   int _selectedNavIndex = 1; // Default to Dashboard
+  String? _avatarUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      // Fetch from profiles table directly, as userMetadata is often a cached token
+      try {
+        final profileData = await Supabase.instance.client
+            .from('profiles')
+            .select('avatar_url')
+            .eq('id', user.id)
+            .single();
+
+        if (mounted) {
+          setState(() {
+            _avatarUrl = profileData['avatar_url'] as String?;
+          });
+        }
+      } catch (e) {
+        // Fallback to metadata if table fetch fails
+        if (mounted) {
+          setState(() {
+            _avatarUrl = user.userMetadata?['avatar_url'];
+          });
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -116,13 +151,22 @@ class _DashboardPageState extends State<DashboardPage> {
               Container(
                 height: 40,
                 width: 40,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  image: DecorationImage(
-                    image: NetworkImage("https://i.pravatar.cc/150?img=11"),
-                    fit: BoxFit.cover,
-                  ),
+                  color: const Color(0xFFEAE6F9),
+                  image: _avatarUrl != null
+                    ? DecorationImage(
+                        image: NetworkImage(_avatarUrl!),
+                        fit: BoxFit.cover,
+                      )
+                    : const DecorationImage(
+                        image: NetworkImage("https://i.pravatar.cc/150?img=11"),
+                        fit: BoxFit.cover,
+                      ),
                 ),
+                child: _avatarUrl == null
+                    ? const Icon(CupertinoIcons.person_fill, color: Color(0xFF6B4FE8), size: 24)
+                    : null,
               ),
               const SizedBox(width: 8),
               const Icon(CupertinoIcons.chevron_down, color: Colors.black54),

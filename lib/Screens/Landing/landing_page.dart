@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
@@ -7,9 +8,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:lottie/lottie.dart';
 import 'package:simple_animations/simple_animations.dart';
+import 'package:image_picker/image_picker.dart';
 import '../Dashboard/dashboard_page.dart';
-import 'package:lottie/lottie.dart';
-import 'package:simple_animations/simple_animations.dart';
 
 class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
@@ -21,27 +21,123 @@ class LandingPage extends StatefulWidget {
 class _LandingPageState extends State<LandingPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _usernameController = TextEditingController();
+  
   bool _isLoading = false;
+  bool _isLogin = true; // Toggle between Login and Sign Up
+  Uint8List? _profileImageBytes;
+  String? _profileImageExt;
+  
+  final ImagePicker _picker = ImagePicker();
 
-  Future<void> _handleGoogleSignIn() async {
+  Future<void> _pickImage() async {
+    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      final bytes = await pickedFile.readAsBytes();
+      setState(() {
+        _profileImageBytes = bytes;
+        _profileImageExt = pickedFile.name.split('.').last;
+      });
+    }
+  }
+
+  Future<void> _handleAuth() async {
     setState(() { _isLoading = true; });
     try {
-      // Use Supabase's built-in OAuth for web and mobile. 
-      // It handles the redirect automatically!
-      await Supabase.instance.client.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: 'io.supabase.languagelearner://login-callback', // Ignore if just testing on web
-      );
+      final email = _emailController.text.trim();
+      final password = _passwordController.text.trim();
       
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const DashboardPage()),
+      if (email.isEmpty || password.isEmpty) {
+        throw 'Please enter email and password';
+      }
+
+      if (_isLogin) {
+        // --- LOGIN FLOW ---
+        final response = await Supabase.instance.client.auth.signInWithPassword(
+          email: email,
+          password: password,
         );
+        if (response.user != null) {
+          if (mounted) {
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardPage()));
+          }
+        }
+      } else {
+        // --- SIGN UP FLOW ---
+        final username = _usernameController.text.trim();
+        if (username.isEmpty) throw 'Please enter a username';
+        
+        // 1. Create the user in Auth
+        final response = await Supabase.instance.client.auth.signUp(
+          email: email,
+          password: password,
+          data: {'username': username},
+        );
+        
+        if (response.user != null) {
+          // Explicitly log the user in if the session didn't auto-populate (fixes 400 auth missing error)
+          if (response.session == null) {
+            await Supabase.instance.client.auth.signInWithPassword(
+              email: email,
+              password: password,
+            );
+          }
+
+          String? avatarUrl;
+          
+          // 2. Upload Profile Picture if selected
+          if (_profileImageBytes != null) {
+            final fileExt = _profileImageExt ?? 'jpg';
+            final fileName = '${response.user!.id}.$fileExt';
+            
+            // Bypass Flutter Web SDK bug where uploadBinary drops API keys on binary/blob construction
+            final uploadUrl = Uri.parse('https://vntakbqalzorqxopxxul.supabase.co/storage/v1/object/avatars/$fileName');
+            final uploadResponse = await http.post(
+              uploadUrl,
+              headers: {
+                'Authorization': 'Bearer ${response.session!.accessToken}',
+                'apikey': 'sb_publishable_Pm7o73nIZwHOeLBGtbUBVQ_DwEShQiV',
+                'Content-Type': 'image/$fileExt',
+                'x-upsert': 'true',
+              },
+              body: _profileImageBytes!,
+            );
+            
+            if (uploadResponse.statusCode >= 400) {
+               throw 'Storage Upload Failed: ${uploadResponse.body}';
+            }
+              
+            avatarUrl = Supabase.instance.client.storage.from('avatars').getPublicUrl(fileName);
+            
+            // Update Auth Metadata with actual URL
+            await Supabase.instance.client.auth.updateUser(
+              UserAttributes(data: {'avatar_url': avatarUrl, 'username': username}),
+            );
+            
+            // Manual profile update if the trigger didn't catch the photo in time
+            await Supabase.instance.client.from('profiles').upsert({
+              'id': response.user!.id,
+              'username': username,
+              'email': email,
+              'avatar_url': avatarUrl,
+            });
+          } else {
+             await Supabase.instance.client.from('profiles').upsert({
+              'id': response.user!.id,
+              'username': username,
+              'email': email,
+            });
+          }
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account Created Successfully!')));
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardPage()));
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Google Sign-In Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Auth Error: $e'), backgroundColor: Colors.red));
       }
     } finally {
       if (mounted) {
@@ -50,36 +146,17 @@ class _LandingPageState extends State<LandingPage> {
     }
   }
 
-  Future<void> _handleNetflixLogin() async {
+  Future<void> _handleGoogleSignIn() async {
     setState(() { _isLoading = true; });
     try {
-      // Use 10.0.2.2 for Android Emulator, or localhost for iOS/web. 
-      // Replace with your actual machine IP if running on a real device.
-      final url = Uri.parse('http://localhost:3000/auth/netflix/simulate');
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': _emailController.text.trim().isNotEmpty ? _emailController.text.trim() : 'simulated@netflix.com',
-          'name': 'Netflix User',
-          'netflixId': 'sim-123456789'
-        }),
+      await Supabase.instance.client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'io.supabase.languagelearner://login-callback',
       );
-
-      if (response.statusCode == 200) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Netflix Auth Simulated Success!')));
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const DashboardPage()),
-          );
-        }
-      } else {
-        throw 'Backend error ${response.statusCode}: ${response.body}';
-      }
+      // Supabase handles the deep link return natively on mobile
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Netflix Auth Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Google Sign-In Error: $e')));
       }
     } finally {
       if (mounted) {
@@ -92,19 +169,19 @@ class _LandingPageState extends State<LandingPage> {
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _usernameController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Determine if we need to show side-by-side or scrollable
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth > 800;
 
     return Scaffold(
       body: Stack(
         children: [
-          // Animated Flowing Background
+          // Animated Background
           Positioned.fill(
             child: _buildAnimatedBackground(),
           ),
@@ -185,14 +262,14 @@ class _LandingPageState extends State<LandingPage> {
   Widget _buildLeftPanel() {
     return Container(
       color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 60, vertical: 70),
+      padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 50),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           FadeInDown(
             child: Text(
-              "LOGIN",
+              _isLogin ? "LOGIN" : "CREATE ACCOUNT",
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
                 fontSize: 28,
@@ -206,7 +283,7 @@ class _LandingPageState extends State<LandingPage> {
           FadeInDown(
             delay: const Duration(milliseconds: 100),
             child: Text(
-              "Lets Take you to excellence and enjoy the application ahead",
+              _isLogin ? "Welcome back! Let's get learning." : "Join LingoLearn and excel today.",
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
                 fontSize: 13,
@@ -214,16 +291,52 @@ class _LandingPageState extends State<LandingPage> {
               ),
             ),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 30),
+          
+          // Image Picker (Only shown on Sign Up)
+          if (!_isLogin)
+            FadeInDown(
+              child: Center(
+                child: GestureDetector(
+                  onTap: _pickImage,
+                  child: CircleAvatar(
+                    radius: 45,
+                    backgroundColor: const Color(0xFFF4F0FF),
+                    backgroundImage: _profileImageBytes != null ? MemoryImage(_profileImageBytes!) : null,
+                    child: _profileImageBytes == null 
+                      ? const Icon(CupertinoIcons.camera, size: 30, color: Color(0xFF6B4FE8))
+                      : null,
+                  ),
+                ),
+              ),
+            ),
+            
+          if (!_isLogin) const SizedBox(height: 20),
+
+          // Username Field (Only shown on Sign Up)
+          if (!_isLogin)
+            FadeInUp(
+              delay: const Duration(milliseconds: 150),
+              child: _buildTextField(
+                controller: _usernameController,
+                hint: "Username",
+                icon: CupertinoIcons.person,
+              ),
+            ),
+          if (!_isLogin) const SizedBox(height: 20),
+
+          // Email Field
           FadeInUp(
             delay: const Duration(milliseconds: 200),
             child: _buildTextField(
               controller: _emailController,
-              hint: "Username",
-              icon: CupertinoIcons.person,
+              hint: "Email Address",
+              icon: CupertinoIcons.mail,
             ),
           ),
           const SizedBox(height: 20),
+
+          // Password Field
           FadeInUp(
             delay: const Duration(milliseconds: 300),
             child: _buildTextField(
@@ -233,53 +346,55 @@ class _LandingPageState extends State<LandingPage> {
               isPassword: true,
             ),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 30),
+
+          // Auth Button
           FadeInUp(
             delay: const Duration(milliseconds: 400),
-            child: ElevatedButton(
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Welcome back!',
-                      style: GoogleFonts.poppins(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+            child: _isLoading 
+              ? const Center(child: CircularProgressIndicator())
+              : ElevatedButton(
+                  onPressed: _handleAuth,
+                  style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF6B4FE8),
-                    duration: const Duration(seconds: 2),
-                    behavior: SnackBarBehavior.floating,
+                    padding: const EdgeInsets.symmetric(vertical: 18),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    _isLogin ? "Login Now" : "Sign Up",
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
                     ),
                   ),
-                );
-                // Also redirect on normal login click
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const DashboardPage()),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6B4FE8),
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(30),
                 ),
-                elevation: 0,
-              ),
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // Toggle Login/SignUp
+          FadeInUp(
+            delay: const Duration(milliseconds: 450),
+            child: TextButton(
+              onPressed: () {
+                setState(() { _isLogin = !_isLogin; });
+              },
               child: Text(
-                "Login Now",
+                _isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In",
                 style: GoogleFonts.poppins(
-                  fontSize: 16,
+                  color: const Color(0xFF6B4FE8),
                   fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                  letterSpacing: 0.5,
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 30),
+
+          const SizedBox(height: 10),
           FadeInUp(
             delay: const Duration(milliseconds: 500),
             child: Row(
@@ -288,7 +403,7 @@ class _LandingPageState extends State<LandingPage> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
-                    "Login with Others",
+                    "Or continue with",
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       color: const Color(0xFF9E9E9E),
@@ -299,10 +414,12 @@ class _LandingPageState extends State<LandingPage> {
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+          
+          // Google Button
           FadeInUp(
             delay: const Duration(milliseconds: 600),
-            child: _isLoading ? const Center(child: CircularProgressIndicator()) : _buildSocialButton(
+            child: _buildSocialButton(
               iconWidget: Text(
                 "G",
                 style: GoogleFonts.poppins(
@@ -311,24 +428,8 @@ class _LandingPageState extends State<LandingPage> {
                   color: Colors.red,
                 ),
               ),
-              label: "Login with Google",
+              label: "Google",
               onPressed: _handleGoogleSignIn,
-            ),
-          ),
-          const SizedBox(height: 16),
-          FadeInUp(
-            delay: const Duration(milliseconds: 700),
-            child: _isLoading ? const Center(child: CircularProgressIndicator()) : _buildSocialButton(
-              iconWidget: Text(
-                "N",
-                style: GoogleFonts.poppins(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFFE50914), // Netflix Red
-                ),
-              ),
-              label: "Login with Netflix",
-              onPressed: _handleNetflixLogin,
             ),
           ),
         ],
@@ -344,8 +445,8 @@ class _LandingPageState extends State<LandingPage> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFF4F0FF), // Light purple from mockup
-        borderRadius: BorderRadius.circular(30), // Pill shape from mockup
+        color: const Color(0xFFF4F0FF),
+        borderRadius: BorderRadius.circular(30),
       ),
       child: TextField(
         controller: controller,
@@ -409,13 +510,11 @@ class _LandingPageState extends State<LandingPage> {
       color: const Color(0xFF6B4FE8),
       child: Stack(
         children: [
-          // Background curves
           Positioned.fill(
             child: CustomPaint(
               painter: _CurvePainter(),
             ),
           ),
-          // Decorator circle (dark purple)
           Positioned(
             left: -30,
             top: -30,
@@ -428,7 +527,6 @@ class _LandingPageState extends State<LandingPage> {
               ),
             ),
           ),
-          // Decorator circle (white)
           Positioned(
             right: 40,
             bottom: -40,
@@ -441,7 +539,6 @@ class _LandingPageState extends State<LandingPage> {
               ),
             ),
           ),
-          // Main center image container
           Center(
             child: FadeIn(
               duration: const Duration(seconds: 1),
@@ -468,7 +565,7 @@ class _LandingPageState extends State<LandingPage> {
                       height: 180,
                       errorBuilder: (context, error, stackTrace) {
                         return const Icon(
-                          Icons.cast_for_education,
+                          CupertinoIcons.book_fill,
                           color: Colors.white,
                           size: 80,
                         );
@@ -479,7 +576,6 @@ class _LandingPageState extends State<LandingPage> {
               ),
             ),
           ),
-          // Decorator circle (yellow !)
           Positioned(
             left: 20,
             top: MediaQuery.of(context).size.height * 0.4,

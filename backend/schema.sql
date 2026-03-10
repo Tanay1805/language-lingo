@@ -66,3 +66,70 @@ ALTER TABLE public.flashcards ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can manage their own courses" ON public.user_courses FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Users can manage their own flashcards" ON public.flashcards FOR ALL USING (auth.uid() = user_id);
 -- (Add more granular policies as needed for quizzes and courses, but the node backend using the Service Key will bypass these anyway).
+
+-- 6. Profiles Table (Linked to Supabase Auth)
+CREATE TABLE public.profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  username TEXT NOT NULL,
+  email TEXT,
+  avatar_url TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public profiles are viewable by everyone" ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "Users can insert their own profile" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY "Users can update their own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
+
+-- 7. Automated Trigger to create a profile when a new user signs up
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO public.profiles (id, username, email, avatar_url)
+  VALUES (
+    new.id,
+    COALESCE(new.raw_user_meta_data->>'username', 'New Learner'),
+    new.email,
+    new.raw_user_meta_data->>'avatar_url'
+  );
+  RETURN new;
+END;
+$$;
+
+-- Trigger the function every time a user is created
+CREATE OR REPLACE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+/*
+  IMPORTANT: Storage Bucket Instructions
+  Because Supabase Storage isn't created automatically via SQL, you must:
+  1. Go to your Supabase Dashboard -> Storage
+  2. Create a new bucket named: 'avatars'
+  3. Set it to 'Public'
+  4. Add an RLS policy to the 'avatars' bucket allowing all operations (or just authenticated insert/selects).
+*/
+
+/* 
+  STORAGE POLICY FIX (403 Error Resolution):
+  If you received a "Row-level security policy, statusCode: 403" when uploading, 
+  your database requires explicit authentication declarations.
+  
+  Run this command instead in your Supabase SQL Editor:
+  
+  -- Drop the previous loose policy if it exists
+  DROP POLICY IF EXISTS "Allow public uploads" ON storage.objects;
+
+  -- Create a strictly Authenticated policy for avatar uploads
+  CREATE POLICY "Allow authenticated uploads"
+  ON storage.objects FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'avatars');
+
+  -- Ensure public views are still allowed
+  CREATE POLICY "Allow public views" 
+  ON storage.objects FOR SELECT TO public
+  USING (bucket_id = 'avatars');
+*/
