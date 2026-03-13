@@ -43,7 +43,7 @@ class _LandingPageState extends State<LandingPage> {
 
       if (event == AuthChangeEvent.signedIn || event == AuthChangeEvent.initialSession) {
         if (session != null && mounted) {
-           Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardPage()));
+           Navigator.pushReplacementNamed(context, '/dashboard');
         }
       }
     });
@@ -78,7 +78,7 @@ class _LandingPageState extends State<LandingPage> {
         );
         if (response.user != null) {
           if (mounted) {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardPage()));
+            Navigator.pushReplacementNamed(context, '/dashboard');
           }
         }
       } else {
@@ -150,7 +150,7 @@ class _LandingPageState extends State<LandingPage> {
           
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account Created Successfully!')));
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardPage()));
+            Navigator.pushReplacementNamed(context, '/dashboard');
           }
         }
       }

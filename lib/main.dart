@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'Screens/Splash/splash_screen.dart';
+import 'Screens/Landing/landing_page.dart';
+import 'Screens/Dashboard/dashboard_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,7 +38,12 @@ class MyApp extends StatelessWidget {
           },
         ),
       ),
-      home: const SplashScreen(),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const SplashScreen(),
+        '/landing': (context) => const LandingPage(),
+        '/dashboard': (context) => const DashboardPage(),
+      },
     );
   }
 }

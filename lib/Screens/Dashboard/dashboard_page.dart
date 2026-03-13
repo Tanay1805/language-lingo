@@ -121,7 +121,7 @@ class _DashboardPageState extends State<DashboardPage> {
               const Icon(CupertinoIcons.globe, color: Colors.black, size: 28),
               const SizedBox(width: 8),
               Text(
-                "LingoLearn",
+                "LangLingo",
                 style: GoogleFonts.poppins(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -167,9 +167,9 @@ class _DashboardPageState extends State<DashboardPage> {
                   } else if (value == 'logout') {
                     await Supabase.instance.client.auth.signOut();
                     if (context.mounted) {
-                      Navigator.pushAndRemoveUntil(
+                      Navigator.pushNamedAndRemoveUntil(
                         context,
-                        MaterialPageRoute(builder: (context) => const SplashScreen()),
+                        '/landing',
                         (route) => false,
                       );
                     }
