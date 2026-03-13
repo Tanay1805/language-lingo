@@ -2,9 +2,70 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'dart:async';
+import 'package:shared_preferences/shared_preferences.dart';
 
-class ActivityChartWidget extends StatelessWidget {
+class ActivityChartWidget extends StatefulWidget {
   const ActivityChartWidget({super.key});
+
+  @override
+  State<ActivityChartWidget> createState() => _ActivityChartWidgetState();
+}
+
+class _ActivityChartWidgetState extends State<ActivityChartWidget> {
+  late Timer _timer;
+  int _totalSeconds = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTotalTime();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          _totalSeconds++;
+        });
+        if (_totalSeconds % 5 == 0) {
+          // Save every 5 seconds to reduce I/O overhead
+          _saveTotalTime();
+        }
+      }
+    });
+  }
+
+  Future<void> _loadTotalTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _totalSeconds = prefs.getInt('total_activity_seconds') ?? 0;
+    });
+  }
+
+  Future<void> _saveTotalTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('total_activity_seconds', _totalSeconds);
+  }
+
+  @override
+  void dispose() {
+    _saveTotalTime(); // Save one last time when leaving the page
+    _timer.cancel();
+    super.dispose();
+  }
+
+  String _formatDuration(int totalSeconds) {
+    if (totalSeconds < 60) {
+      return "${totalSeconds}s";
+    }
+    
+    int hours = totalSeconds ~/ 3600;
+    int minutes = (totalSeconds % 3600) ~/ 60;
+    
+    if (hours > 0) {
+      return "${hours}h ${minutes}m";
+    } else {
+      return "${minutes}m";
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,9 +126,9 @@ class ActivityChartWidget extends StatelessWidget {
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
-                "24,9",
+                _formatDuration(_totalSeconds),
                 style: GoogleFonts.poppins(
-                  fontSize: 40,
+                  fontSize: 32,
                   fontWeight: FontWeight.bold,
                   letterSpacing: -1,
                   color: Colors.black87,
@@ -78,11 +139,11 @@ class ActivityChartWidget extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "Hours",
+                    "Time",
                     style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
                   ),
                   Text(
-                    "spent",
+                    "spent overall",
                     style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
                   ),
                 ],

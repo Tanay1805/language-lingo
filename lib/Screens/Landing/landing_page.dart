@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
@@ -29,6 +30,23 @@ class _LandingPageState extends State<LandingPage> {
   String? _profileImageExt;
   
   final ImagePicker _picker = ImagePicker();
+  
+  late final StreamSubscription<AuthState> _authStateSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _authStateSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      final AuthChangeEvent event = data.event;
+      final Session? session = data.session;
+
+      if (event == AuthChangeEvent.signedIn || event == AuthChangeEvent.initialSession) {
+        if (session != null && mounted) {
+           Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardPage()));
+        }
+      }
+    });
+  }
 
   Future<void> _pickImage() async {
     final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
@@ -167,6 +185,7 @@ class _LandingPageState extends State<LandingPage> {
 
   @override
   void dispose() {
+    _authStateSubscription.cancel();
     _emailController.dispose();
     _passwordController.dispose();
     _usernameController.dispose();

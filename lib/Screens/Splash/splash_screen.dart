@@ -63,7 +63,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 delay: const Duration(milliseconds: 300),
                 duration: const Duration(milliseconds: 800),
                 child: Text(
-                  'Language Learner',
+                  'langlingo',
                   style: GoogleFonts.poppins(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,

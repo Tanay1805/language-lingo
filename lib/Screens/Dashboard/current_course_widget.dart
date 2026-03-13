@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'continue_learning_page.dart';
+
 class CurrentCourseWidget extends StatelessWidget {
   const CurrentCourseWidget({super.key});
 
@@ -33,7 +35,7 @@ class CurrentCourseWidget extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  "Group course",
+                  "Explore",
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -49,7 +51,7 @@ class CurrentCourseWidget extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  "Advanced",
+                  "All levels",
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -63,7 +65,7 @@ class CurrentCourseWidget extends StatelessWidget {
           
           // Title
           Text(
-            "English punctuation made easy",
+            "Language Explorer",
             style: GoogleFonts.poppins(
               fontSize: 22,
               fontWeight: FontWeight.w600,
@@ -75,7 +77,7 @@ class CurrentCourseWidget extends StatelessWidget {
           
           // Description
           Text(
-            "Punctuation — learn the basics without the pain. People will never laugh at your punctuation again. You do not require any materials or software.",
+            "Dive into different languages and learn commonly spoken expressions, essential grammar bites, and cultural etiquette context.",
             style: GoogleFonts.poppins(
               fontSize: 13,
               color: Colors.grey.shade600,
@@ -176,7 +178,14 @@ class CurrentCourseWidget extends StatelessWidget {
             width: double.infinity,
             height: 54,
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ContinueLearningPage(),
+                  ),
+                );
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black,
                 shape: RoundedRectangleBorder(

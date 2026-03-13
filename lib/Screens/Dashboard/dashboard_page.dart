@@ -11,6 +11,8 @@ import 'support_tab_widget.dart';
 import 'current_course_widget.dart';
 import '../Learning/series_selection_page.dart';
 import '../Learning/netflix_transition_page.dart';
+import '../Profile/profile_page.dart';
+import '../Splash/splash_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -152,28 +154,77 @@ class _DashboardPageState extends State<DashboardPage> {
                 onPressed: () {},
               ),
               const SizedBox(width: 8),
-              Container(
-                height: 40,
-                width: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFFEAE6F9),
-                  image: _avatarUrl != null
-                    ? DecorationImage(
-                        image: NetworkImage(_avatarUrl!),
-                        fit: BoxFit.cover,
-                      )
-                    : const DecorationImage(
-                        image: NetworkImage("https://i.pravatar.cc/150?img=11"),
-                        fit: BoxFit.cover,
+              PopupMenuButton<String>(
+                offset: const Offset(0, 50),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                color: Colors.white,
+                onSelected: (value) async {
+                  if (value == 'profile') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ProfilePage()),
+                    );
+                  } else if (value == 'logout') {
+                    await Supabase.instance.client.auth.signOut();
+                    if (context.mounted) {
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(builder: (context) => const SplashScreen()),
+                        (route) => false,
+                      );
+                    }
+                  }
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'profile',
+                    child: Row(
+                      children: [
+                        const Icon(CupertinoIcons.person, size: 20, color: Colors.black87),
+                        const SizedBox(width: 12),
+                        Text('Profile', style: GoogleFonts.poppins(fontSize: 14)),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuDivider(),
+                  PopupMenuItem(
+                    value: 'logout',
+                    child: Row(
+                      children: [
+                        const Icon(CupertinoIcons.square_arrow_right, size: 20, color: Colors.redAccent),
+                        const SizedBox(width: 12),
+                        Text('Logout', style: GoogleFonts.poppins(fontSize: 14, color: Colors.redAccent)),
+                      ],
+                    ),
+                  ),
+                ],
+                child: Row(
+                  children: [
+                    Container(
+                      height: 40,
+                      width: 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFFEAE6F9),
+                        image: _avatarUrl != null
+                          ? DecorationImage(
+                              image: NetworkImage(_avatarUrl!),
+                              fit: BoxFit.cover,
+                            )
+                          : const DecorationImage(
+                              image: NetworkImage("https://i.pravatar.cc/150?img=11"),
+                              fit: BoxFit.cover,
+                            ),
                       ),
+                      child: _avatarUrl == null
+                          ? const Icon(CupertinoIcons.person_fill, color: Color(0xFF6B4FE8), size: 24)
+                          : null,
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(CupertinoIcons.chevron_down, color: Colors.black54),
+                  ],
                 ),
-                child: _avatarUrl == null
-                    ? const Icon(CupertinoIcons.person_fill, color: Color(0xFF6B4FE8), size: 24)
-                    : null,
               ),
-              const SizedBox(width: 8),
-              const Icon(CupertinoIcons.chevron_down, color: Colors.black54),
             ],
           ),
         ],
