@@ -500,7 +500,7 @@ class _LiveChatWidgetState extends State<LiveChatWidget> {
 
     try {
       final response = await http.post(
-        Uri.parse('http://localhost:3000/chat/support'),
+        Uri.parse('https://language-lingo.onrender.com/chat/support'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'message': text,

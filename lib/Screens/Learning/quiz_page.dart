@@ -89,7 +89,7 @@ class _QuizPageState extends State<QuizPage> {
     setState(() => _isLoading = true);
     try {
       final response = await http.post(
-        Uri.parse('http://localhost:3000/quiz/generate'),
+        Uri.parse('https://language-lingo.onrender.com/quiz/generate'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'showName': widget.showName,
@@ -149,7 +149,7 @@ class _QuizPageState extends State<QuizPage> {
     setState(() => _isGeneratingFlashcards = true);
     try {
       final response = await http.post(
-        Uri.parse('http://localhost:3000/flashcards/generate'),
+        Uri.parse('https://language-lingo.onrender.com/flashcards/generate'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'mistakes': _mistakes,
