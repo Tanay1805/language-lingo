@@ -10,6 +10,7 @@ import 'package:animate_do/animate_do.dart';
 import 'package:lottie/lottie.dart';
 import 'package:simple_animations/simple_animations.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../Dashboard/dashboard_page.dart';
 
 class LandingPage extends StatefulWidget {
@@ -167,7 +168,6 @@ class _LandingPageState extends State<LandingPage> {
   Future<void> _handleGoogleSignIn() async {
     setState(() { _isLoading = true; });
     try {
-import 'package:flutter/foundation.dart' show kIsWeb; // Add to imports if not there
 
 // ... inside _handleGoogleSignIn ...
       await Supabase.instance.client.auth.signInWithOAuth(
